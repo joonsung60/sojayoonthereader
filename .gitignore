@@ -1,0 +1,13 @@
+# Virtual Environment
+venv/
+
+# Environment variables
+.env.local
+
+# Output directory
+output/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
