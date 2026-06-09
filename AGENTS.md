@@ -43,3 +43,4 @@ argparse로 실행 모드를 분리한다 (--mode full/regen/rebuild/timestamps)
 "코드만 보여줄 것", "실행 금지" 명시 시 절대 실행하지 않는다
 API 호출이 발생하는 작업은 반드시 사전 확인 후 실행한다
 타입캐스트 API, Claude API, ollama 호출 전 항상 확인한다
+ffmpeg 인코딩(poem_video.py 전체 영상 생성)처럼 오래 걸리는 작업도 사전 확인 후 실행한다 (프레임 확인은 --test / --frames-only 활용)

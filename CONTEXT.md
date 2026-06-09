@@ -14,7 +14,13 @@ TTS 생성 (poem_tts.py)
   → pydub 합치기
   → output/{시인}/audio/        ← 개별 시 wav + 전집 wav
   → output/{시인}/lines/        ← params.json + 행별 wav + 타임스탬프
-  → output/{시인}/video/        ← 최종 mp4 (예정)
+
+영상 생성 (poem_video.py)
+  → 배경 png + 타임스탬프 + 시 데이터
+  → Pillow 프레임 합성 (좌: 시 목록 / 우: 제목+본문)
+  → ffmpeg concat + 음원 (전집 wav 3회 반복)
+  → output/{시인}/video/        ← 최종 mp4
+  → output/{시인}/video/frames/ ← 프레임 png (--frames-only 시)
 시인 관리 원칙
 
 저작권 만료 기준: 사망 후 70년 (한국 기준)
@@ -35,9 +41,10 @@ sojayoonthereader/
 │   └── {시인}/
 │       ├── audio/              ← 개별 시 wav, 전집 wav
 │       ├── lines/              ← params.json, 타임스탬프.json, lines_*/ 폴더들
-│       └── video/              ← 최종 mp4
+│       └── video/              ← background.png, 최종 mp4, frames/ 폴더
 ├── poem_tts.py                 ← TTS 파이프라인 메인
 ├── scrape_poems.py             ← 스크래핑 + 현대어 변환
+├── poem_video.py               ← 영상 생성 (프레임 합성 → ffmpeg → mp4)
 └── .env.local                  ← API 키 (git 제외)
 핵심 설정값 (poem_tts.py)
 
@@ -47,6 +54,15 @@ VOICES - 타입캐스트 보이스 딕셔너리 (소영: tc_5c789c317ad86500073a
 TTS 모델: ssfm-v30, emotion_preset: tonedown
 파라미터 설계: ollama gemma3:27b (로컬)
 현대어 변환: Claude Sonnet API (일회성)
+
+핵심 설정값 (poem_video.py)
+
+해상도/FPS: 1920x1080, 30fps
+AUDIO_LOOP - 음원(=영상) 반복 횟수 (기본 3회)
+FONT_BODY - 시 본문 폰트 (고운돋움), FONT_LIST - 목록 폰트 (나눔고딕)
+배경 이미지: output/{시인}/video/background.png (필수)
+한 페이지 행 수(max_lines)는 본문 영역 높이에서 자동 계산, 초과 시 _paginate()로 여러 페이지 분할 (페이지 간 overlap행 겹침, 빈 줄 제외 카운트)
+poem_tts.py의 상수/함수를 import (단방향 의존)
 
 실행 방법
 ```bash
@@ -64,9 +80,19 @@ python poem_tts.py --mode rebuild
 
 # 타임스탬프 생성
 python poem_tts.py --mode timestamps
+
+# 영상 프레임 1장 테스트
+python poem_video.py --test
+
+# 전체 영상 생성
+python poem_video.py
+
+# 프레임만 생성 (ffmpeg 인코딩 생략)
+python poem_video.py --frames-only
 ```
-현재 상태 (2026-06-09 기준)
+현재 상태 (2026-06-10 기준)
 
 김영랑 영랑시집 53편 음원 완성
 전집 wav (약 36분) + 타임스탬프 JSON 완성
-영상 제작 단계 진행 예정
+poem_video.py 영상 생성 파이프라인 구현 완료 (프레임 합성 + ffmpeg)
+배경 이미지(background.png) 준비 후 전체 영상 렌더링 단계

@@ -95,6 +95,12 @@ python poem_video.py --test-short
 python poem_video.py
 ```
 
+### 프레임 이미지만 생성 (ffmpeg 인코딩 생략)
+```bash
+python poem_video.py --frames-only
+# → output/{시인}/video/frames/ 에 frame_{idx}_p{page}.png 저장
+```
+
 ---
 
 ## 유지보수

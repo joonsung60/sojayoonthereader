@@ -1,4 +1,4 @@
 프로젝트의 작업 규칙과 컨텍스트는 아래 파일을 참고하세요.
 
-작업 규칙: agents.md
-프로젝트 컨텍스트: context.md
+작업 규칙: AGENTS.md
+프로젝트 컨텍스트: CONTEXT.md
