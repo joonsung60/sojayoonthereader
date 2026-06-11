@@ -1,0 +1,13 @@
+{
+  "active": {
+    "author": "윤동주",
+    "collection": "하늘과바람과별과시"
+  },
+  "queue": [
+    {"author": "김소월", "collection": "진달래꽃"},
+    {"author": "한용운", "collection": "님의침묵"}
+  ],
+  "done": [
+    {"author": "김영랑", "collection": "영랑시집"}
+  ]
+}

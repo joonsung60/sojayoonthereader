@@ -19,16 +19,60 @@ load_dotenv(".env.local")
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; educational-scraper/1.0)"}
 
-MODERNIZE_SYSTEM_PROMPT = """당신은 한국 고시가 전문가입니다. 1930년대 구한글 표기의 시를 현대 맞춤법으로 변환합니다.
+MODERNIZE_SYSTEM_PROMPT = """당신은 한국 근현대시 전문가입니다. 1900년대 초중반 구한글 표기의 시를 낭송에 적합한 형태로 변환합니다.
 
-변환 규칙:
-1. 구표기를 현대 맞춤법으로 변환 (예: 기둘리고→기다리고, 꼿닙→꽃잎, 잇슬→있을, 아즉→아직, 업서→없어)
-2. 본문의 한자는 한글로 변환 (예: 五月→오월, 三百→삼백, 詩→시, 除夜→제야)
-3. 제목의 한자 병기 괄호 제거 (예: 불지암(佛地菴)→불지암)
-4. 행 구분은 줄바꿈(\\n) 하나, 연 구분은 빈 줄(\\n\\n\\n)로 유지 (\\n\\n은 사용하지 말 것)
-5. 원시의 의미와 운율을 최대한 보존
+핵심 원칙: 표기 오류만 교정하고, 시어의 맛과 운율은 최대한 보존합니다.
+변환이 망설여지면 원문을 유지하세요. 표기 교정이 목적이지 현대화가 목적이 아닙니다.
 
-출력 형식: 변환된 시 텍스트만 출력. 원문의 모든 행을 그대로 보존하세요(제목과 동일한 첫 행이 있더라도 절대 제거하지 말 것). 행을 추가/삭제/병합하지 말고, 오직 표기만 현대어로 변환하세요."""
+[반드시 변환해야 하는 것들의 예시]
+- 과거 표기를 현대 표기로 변환: 잇슬→있을, 업서→없어, 꼿닙→꽃잎
+- 이중피동 등 문법 오류: 씌워진→씌어진
+- 본문 및 제목 한자: 五月→오월, 恐怖→공포, 序曲→서곡, 七夕→칠석
+- 본문 및 제목 한자 병기 괄호: 불지암(佛地菴)→불지암
+- 두음법칙 미적용 표기: 리별→이별, 련꽃→연꽃, 량심→양심
+
+[변환 금지]
+- 시어로 굳어진 음역어: 와사등 (가스등으로 바꾸지 말 것)
+- 방언으로 시적 효과를 내는 표현: 기둘리고 (기다리고로 바꾸지 말 것), 아즉 (아직으로 바꾸지 말 것)
+- 시인 고유의 어투/문체: ~하오, ~이옵니다, ~하오리다 등 경어체
+- 외래어 고유명사: 프랑시스 잠, 라이너 마리아 릴케 등
+
+[few-shot 예시]
+원문: 와사등에 불을 혀놓고
+변환: 와사등에 불을 혀놓고 (와사등 유지 — 시어로 굳어진 음역어)
+
+원문: 기둘리고 기둘리어
+변환: 기둘리고 기둘리어 (기다리고로 바꾸지 말 것 — 방언 질감)
+
+원문: 詩가 이렇게 쉽게 씌워지는 것은
+변환: 시가 이렇게 쉽게 씌어지는 것은 (한자→한글, 씌워진→씌어진 교정)
+
+원문: 六疊房은 남의 나라
+변환: 육첩방은 남의 나라 (한자 표기 교정)
+
+원문: 나는 괴로워했다.
+변환: 나는 괴로워했다. (이미 현대어 — 변환 불필요)
+
+원문: 아아, 님은 갔습니다
+변환: 아아, 님은 갔습니다  (임으로 바꾸지 말 것 — 한용운 고유 시어)
+
+원문: 가지 마셔요
+변환: 가지 마셔요  (마세요로 바꾸지 말 것 — 경어체 원형 보존)
+
+원문: 날마다々々々 낡어감니다
+변환: 날마다날마다 낡아갑니다 (々 반복 기호 풀어쓰기)
+
+원문: 못 오시는 당신이 기루어요
+변환: 못 오시는 당신이 기루어요  (그리워요로 바꾸지 말 것. 한용운 특유의 표현.)
+
+누어서 → 누워서 (받침/모음 표기 교정)
+우슴 → 웃음, 슯음 → 슬픔, 질거음 → 즐거움 (음절 교정)
+그레서 → 그래서, 가마니 → 가만히 (부사 표기 교정)
+
+형식:
+- 행 구분: \\n, 연 구분: \\n\\n\\n (\\n\\n 사용 금지)
+- 변환된 시 텍스트만 출력
+- 행 추가/삭제/병합 금지, 표기만 변환"""
 
 MODERNIZE_USER_TEMPLATE = (
     "다음 시를 현대 맞춤법으로 변환해주세요.\n\n제목: {title}\n\n원문:\n{text}"
@@ -55,15 +99,17 @@ def fetch_soup(url: str) -> BeautifulSoup:
 
 def get_toc_prefix(toc_url: str) -> str:
     parsed = urlparse(toc_url)
-    return quote(parsed.path, safe="/") + "/"
+    return unquote(parsed.path) + "/"
 
 
 def get_poem_links(soup: BeautifulSoup, toc_prefix: str) -> list[dict]:
     content = soup.find("div", class_="mw-parser-output")
     links, seen = [], set()
+    toc_prefix_decoded = unquote(toc_prefix)
     for a in content.find_all("a", href=True):
         href = a["href"]
-        if href.startswith(toc_prefix) and ":" not in href and href not in seen:
+        href_decoded = unquote(href)
+        if href_decoded.startswith(toc_prefix_decoded) and ":" not in href and href not in seen:
             title = a.get_text(strip=True)
             if title:
                 seen.add(href)
@@ -111,6 +157,38 @@ def extract_poem_text(soup: BeautifulSoup) -> str:
     return text.strip()
 
 
+def extract_standalone_text(soup: BeautifulSoup) -> str:
+    """판본 접두 없는 '단독' 시 페이지의 본문만 추출.
+
+    extract_poem_text()가 다루는 prp-pages-output(스캔 교정본)이 아니라,
+    div.poem / div.prose / 단락 <p> 구조를 쓰는 정본 페이지용이다.
+    mw-parser-output 직계 자식 중 본문 블록만 모으고, 헤더 네비(← 제목 저자 →)·
+    자매프로젝트 박스·라이선스 섹션은 버린다. 행 구분은 \\n, 블록(연/문단)
+    구분은 \\n\\n\\n. 동음이의 문서 등 본문이 없으면 '' 반환."""
+    if soup.find("table", id="disambigbox"):  # 동음이의 문서
+        return ""
+    cont = soup.find("div", class_="mw-parser-output")
+    if cont is None:
+        return ""
+
+    blocks = []
+    for child in cont.find_all(recursive=False):
+        cls = set(child.get("class") or [])
+        if child.name == "style":
+            continue
+        if child.name == "div" and ({"ws-header", "ws-noexport"} & cls):
+            continue  # 헤더 네비·비표시 블록
+        if child.name == "div" and ({"mw-heading", "licenseContainer"} & cls):
+            break     # 라이선스 섹션 시작 → 본문 종료
+        if child.name == "p" or (child.name == "div" and ({"poem", "prose"} & cls)):
+            for br in child.find_all("br"):
+                br.replace_with("\n")
+            block = "\n".join(ln.strip() for ln in child.get_text().splitlines() if ln.strip())
+            if block:
+                blocks.append(block)
+    return "\n\n\n".join(blocks).strip()
+
+
 def scrape(toc_url: str, raw_dir: Path) -> list[dict]:
     parsed = urlparse(toc_url)
     base_url = f"{parsed.scheme}://{parsed.netloc}"
@@ -147,7 +225,7 @@ def scrape(toc_url: str, raw_dir: Path) -> list[dict]:
     return index
 
 
-def rescrape_one(title: str, url: str, author: str = "김영랑"):
+def rescrape_one(title: str, url: str, author: str):
     """단일 시를 위키소스에서 다시 스크래핑해 raw txt를 덮어쓴다 (테스트/수정용).
     예: rescrape_one("오-매 단풍 들것네",
                      "https://ko.wikisource.org/wiki/영랑시집/오-매_단풍_들것네")"""
@@ -170,7 +248,8 @@ def debug_page(url: str):
     저장 파일명은 URL 끝의 시 제목에서 추출 → debug_{제목}.html"""
     last = unquote(urlparse(url).path.rstrip("/").split("/")[-1])  # 황홀한_달빛 → 황홀한 달빛
     title = re.sub(r'[\\/*?:"<>|]', "_", last.replace("_", " "))
-    out_path = Path("poems/raw/김영랑") / f"debug_{title}.html"
+    author = json.loads(Path("config.json").read_text(encoding="utf-8"))["active"]["author"]
+    out_path = Path("poems/raw") / author / f"debug_{title}.html"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     resp = requests.get(url, headers=HEADERS, timeout=15)
@@ -205,7 +284,7 @@ def modernize(index: list[dict], author: str, raw_dir: Path, modern_dir: Path):
         print(f"[{i:02d}/{total}] {modern_title:<30}", end=" ", flush=True)
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=1024,
+            max_tokens=8192,
             system=MODERNIZE_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": MODERNIZE_USER_TEMPLATE.format(
                 title=modern_title, text=raw_text,
@@ -225,7 +304,7 @@ def modernize(index: list[dict], author: str, raw_dir: Path, modern_dir: Path):
     print(f"\n변환 완료: {len(results)}편 → {output_file}")
 
 
-def modernize_one(title: str, author: str = "김영랑"):
+def modernize_one(title: str, author: str):
     """단일 시 하나만 현대어 변환 (테스트용). raw txt를 읽어 변환 후
     poems/modern/{author}/{author}.json의 같은 제목 항목을 갱신(없으면 추가)."""
     raw_dir = Path("poems/raw") / author
@@ -244,7 +323,7 @@ def modernize_one(title: str, author: str = "김영랑"):
     print(f"현대어 변환 (단일): {modern_title}")
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1024,
+        max_tokens=8192,
         system=MODERNIZE_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": MODERNIZE_USER_TEMPLATE.format(
             title=modern_title, text=raw_text,
@@ -268,7 +347,7 @@ def modernize_one(title: str, author: str = "김영랑"):
     return entry
 
 
-def fix_modern_stanza(title: str, author: str = "김영랑"):
+def fix_modern_stanza(title: str, author: str):
     """raw txt의 연 구분 구조를 기준으로 modern json의 text 구분자만 교정.
     Claude 호출 없음, 내용(단어/글자) 변경 없음 — \\n\\n을 \\n으로 바꾸고
     raw의 연 경계에만 \\n\\n\\n을 삽입한다."""
@@ -326,7 +405,7 @@ def fix_modern_stanza(title: str, author: str = "김영랑"):
     return "ok"
 
 
-def fix_all_stanzas(author: str = "김영랑"):
+def fix_all_stanzas(author: str):
     """index.json의 모든 시를 순회하며 rescrape_one → fix_modern_stanza 일괄 적용.
     행 수 불일치 등으로 교정 못한 시는 마지막에 따로 출력해 수동 확인하게 한다."""
     index_path = Path("poems/raw") / author / "index.json"
@@ -354,6 +433,64 @@ def fix_all_stanzas(author: str = "김영랑"):
         print("\n⚠️ 수동 확인 필요:")
         for title, reason in skipped:
             print(f"  - {title}  ({reason})")
+
+
+def modernize_titles(author: str):
+    """poems/modern/{author}/{author}.json을 읽어 한자가 포함된 title을
+    Claude API로 현대어 한글로 변환 후 저장. 제목 목록을 한 번에 넘겨 JSON 배열로 받음.
+    - 한자 제목 → 한글 (序詩 → 서시)
+    - 한자+한글 혼용 → 한자만 한글로 (太初의 아침 → 태초의 아침)
+    - 이미 한글인 제목은 그대로 둠
+    - clean_title()로 한자 병기 괄호 제거 후 판별"""
+    poems_file = Path("poems/modern") / author / f"{author}.json"
+    poems = json.loads(poems_file.read_text(encoding="utf-8"))
+
+    has_hanja = re.compile(r"[一-鿿]")
+    # clean_title 적용 후 한자가 남아 있는 제목만 변환 대상
+    cleaned = [clean_title(p["title"]) for p in poems]
+    targets = [t for t in cleaned if has_hanja.search(t)]
+
+    if not targets:
+        print("변환할 한자 제목이 없습니다.")
+        return
+
+    print("── 변환 전 ──")
+    for t in targets:
+        print(f"  {t}")
+
+    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    system_prompt = (
+        "당신은 한국 근현대 시 제목을 현대어 한글로 변환하는 전문가입니다.\n"
+        "규칙:\n"
+        "1. 한자로 된 제목은 한글로 변환합니다 (예: 序詩 → 서시, 自畵像 → 자화상, 八福 → 팔복).\n"
+        "2. 한자와 한글이 섞인 제목은 한자 부분만 한글로 변환하고 나머지는 그대로 둡니다 "
+        "(예: 看板없는 거리 → 간판없는 거리, 太初의 아침 → 태초의 아침).\n"
+        "3. 띄어쓰기와 한글 부분은 원문 그대로 유지합니다.\n"
+        "입력은 제목 문자열의 JSON 배열입니다. 같은 순서, 같은 길이의 변환된 제목 "
+        "JSON 배열만 출력하세요. 설명이나 코드블록 없이 JSON 배열만 반환하세요."
+    )
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=8192,
+        system=system_prompt,
+        messages=[{"role": "user", "content": json.dumps(targets, ensure_ascii=False)}],
+    )
+    converted = json.loads(response.content[0].text.strip())
+    if len(converted) != len(targets):
+        raise ValueError(f"변환 결과 개수 불일치: 요청 {len(targets)}, 응답 {len(converted)}")
+
+    title_map = dict(zip(targets, converted))
+
+    print("\n── 변환 후 ──")
+    for src, dst in title_map.items():
+        print(f"  {src}  →  {dst}")
+
+    # clean_title 적용본 기준으로 매핑하여 저장
+    for p, clean in zip(poems, cleaned):
+        p["title"] = title_map.get(clean, clean)
+
+    poems_file.write_text(json.dumps(poems, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\n저장 완료: {len(title_map)}개 제목 변환 → {poems_file}")
 
 
 # ── 메인 ────────────────────────────────────────────────
